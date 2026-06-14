@@ -2,19 +2,14 @@ using System.Text.Json;
 
 namespace CalendarCli;
 
-internal sealed class FileSystemCalendarService : ICalendarService
+internal sealed class FileSystemCalendarService(string filePath) : ICalendarService
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         WriteIndented = true
     };
 
-    private readonly string _filePath;
-
-    public FileSystemCalendarService(string filePath)
-    {
-        _filePath = filePath;
-    }
+    private readonly string _filePath = filePath;
 
     public async Task AddAsync(CalendarEvent calendarEvent)
     {
@@ -32,7 +27,7 @@ internal sealed class FileSystemCalendarService : ICalendarService
             .ToList();
     }
 
-    public async Task<(bool Succeeded, CalendarEvent? DeletedEvent)> DeleteAsync(Guid eventId)
+    public async Task<(bool Succeeded, CalendarEvent? DeletedEvent)> DeleteAsync(string eventId)
     {
         var events = await LoadAllAsync();
         var deletedEvent = events.FirstOrDefault(calendarEvent => calendarEvent.Id == eventId);

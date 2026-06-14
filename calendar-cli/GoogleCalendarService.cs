@@ -6,15 +6,10 @@ using Google.Apis.Util.Store;
 
 namespace CalendarCli;
 
-internal sealed class GoogleCalendarService : ICalendarService
+internal sealed class GoogleCalendarService(string secretsJsonPath) : ICalendarService
 {
-    private readonly string _secretsJsonPath;
+    private readonly string _secretsJsonPath = secretsJsonPath;
     private CalendarService? _service;
-
-    public GoogleCalendarService(string secretsJsonPath)
-    {
-        _secretsJsonPath = secretsJsonPath;
-    }
 
     private async Task EnsureInitializedAsync()
     {
@@ -104,14 +99,13 @@ internal sealed class GoogleCalendarService : ICalendarService
         return results.OrderBy(e => e.StartsAt).ToList();
     }
 
-    public async Task<(bool Succeeded, CalendarEvent? DeletedEvent)> DeleteAsync(Guid eventId)
+    public async Task<(bool Succeeded, CalendarEvent? DeletedEvent)> DeleteAsync(string eventId)
     {
         await EnsureInitializedAsync();
-        var stringId = eventId.ToString("n").ToLowerInvariant();
 
         try
         {
-            var item = await _service!.Events.Get("primary", stringId).ExecuteAsync();
+            var item = await _service!.Events.Get("primary", eventId).ExecuteAsync();
             var start = item.Start?.DateTimeDateTimeOffset ?? DateTimeOffset.MinValue;
             var invitees = item.Attendees?.Select(a => a.Email).Where(e => !string.IsNullOrEmpty(e)).ToList() ?? new List<string>();
 
@@ -124,7 +118,7 @@ internal sealed class GoogleCalendarService : ICalendarService
                 invitees
             );
 
-            await _service.Events.Delete("primary", stringId).ExecuteAsync();
+            await _service.Events.Delete("primary", eventId).ExecuteAsync();
             return (true, deletedEvent);
         }
         catch (Google.GoogleApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound)

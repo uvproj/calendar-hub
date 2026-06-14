@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net.Mail;
+using static CalendarCli.CliArguments;
 
 namespace CalendarCli;
 
@@ -309,10 +310,10 @@ internal static class CalendarConsole
             return ExitWithUsage("Unexpected positional arguments were supplied.", PrintDeleteUsage);
         }
 
-        var idText = parsed.GetSingleValue("--id");
-        if (!Guid.TryParse(idText, out var eventId))
+        var eventId = parsed.GetSingleValue("--id");
+        if (string.IsNullOrWhiteSpace(eventId))
         {
-            return ExitWithUsage("The --id option is required and must be a valid GUID.", PrintDeleteUsage);
+            return ExitWithUsage("The --id option is required.", PrintDeleteUsage);
         }
 
         var serviceName = parsed.GetSingleValue("--service");
