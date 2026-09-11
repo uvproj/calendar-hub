@@ -23,15 +23,15 @@ Manages calendar events.
 #### `calendar events add`
 Adds a new calendar event.
 - **Switches**:
-  - `--name <text>` (Required): The title/name of the event.
-  - `--when <date-time>` or `--date-time <date-time>` (Required): The start date and time of the event. Must use an ISO-8601-like format (e.g. `2026-06-18T14:30`).
+  - `<name>` (Required): Positional text used as the event title. Multi-word names may be quoted (`"Sprint Planning"`) or supplied as separate positional words (`Sprint Planning`). The existing `--name <text>` form is also supported, but it cannot be combined with a positional name.
+  - `--when <date-time>` or `--date-time <date-time>` (Required): The start date and time of the event. Accepted formats include ISO-like date/time (`2026-06-18T14:30`), date only (`9/19/2026`), 12-hour time (`9/19/2026:2:30 PM`), 24-hour time (`9/19/2026:14:30`), and relative expressions (`today`, `tomorrow`, `tomorrow 2PM`, `next week`). Date-only and relative expressions without a time use local midnight; `next week` means seven days from today. Quote values that contain spaces.
   - `--description <text>` (Optional): A description of the event.
   - `--location <text>` (Optional): The physical or virtual location of the event.
   - `--invitee <email>` (Optional, Multiple Allowed): An invitee's email address. Can be supplied multiple times for multiple invitees.
   - `--service <name>` (Optional): Specifies the target service to create the event in. If not provided, the default service will be used. If no services are registered, it falls back to the local filesystem calendar.
 - **Example**:
   ```bash
-  calendar events add --name "Sprint Planning" --when "2026-06-18T10:00" --description "Plan tasks for Sprint 5" --location "Meeting Room 4" --invitee alex@example.com --service MyGoogle
+  calendar events add "Sprint Planning" --when "2026-06-18T10:00" --description "Plan tasks for Sprint 5" --location "Meeting Room 4" --invitee alex@example.com --service MyGoogle
   ```
 
 #### `calendar events list`

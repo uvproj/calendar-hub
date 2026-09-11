@@ -17,12 +17,8 @@
     <PackageReference Include="Google.Apis.Calendar.v3" Version="1.74.0.4154" />
   </ItemGroup>
 
-  <Target Name="PublishOnBuild" AfterTargets="Build" Condition="'$(PublishInProgress)' != 'true'">
-    <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="Publish" Properties="Configuration=$(Configuration);PublishInProgress=true" />
-  </Target>
-
-  <Target Name="CopyPublishedExecutable" AfterTargets="Publish">
-    <Copy SourceFiles="$(PublishDir)$(AssemblyName).exe" DestinationFolder="C:\Users\yuvaraj.nagarajan\" />
-  </Target>
+  <ItemGroup>
+    <InternalsVisibleTo Include="CalendarCli.Tests" />
+  </ItemGroup>
 
 </Project>

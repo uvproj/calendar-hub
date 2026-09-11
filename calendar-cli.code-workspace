@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "calendar-cli"
+		},
+		{
+			"path": "calendar-cli.Tests"
+		}
+	],
+	"settings": {
+		"powershell.cwd": "calendar-cli"
+	}
+}

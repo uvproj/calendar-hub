@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="calendar-cli/calendar-cli.csproj" />
+  <Project Path="calendar-cli.Tests/CalendarCli.Tests.csproj" />
+</Solution>

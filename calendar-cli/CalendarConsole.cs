@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Net.Mail;
 using static CalendarCli.CliArguments;
 
@@ -95,15 +94,19 @@ internal static class CalendarConsole
             return 0;
         }
 
-        if (parsed.Positionals.Count > 0)
+        var nameOption = parsed.GetSingleValue("--name");
+        if (parsed.Positionals.Count > 0 && !string.IsNullOrWhiteSpace(nameOption))
         {
-            return ExitWithUsage("Unexpected positional arguments were supplied.", PrintAddUsage);
+            return ExitWithUsage("Specify the event name either as positional text or with --name, not both.", PrintAddUsage);
         }
 
-        var name = parsed.GetSingleValue("--name");
+        var name = parsed.Positionals.Count > 0
+            ? string.Join(" ", parsed.Positionals)
+            : nameOption;
+
         if (string.IsNullOrWhiteSpace(name))
         {
-            return ExitWithUsage("The --name option is required.", PrintAddUsage);
+            return ExitWithUsage("The event name is required.", PrintAddUsage);
         }
 
         var dateTimeText = parsed.GetSingleValue("--when", "--date-time");
@@ -112,14 +115,10 @@ internal static class CalendarConsole
             return ExitWithUsage("The --when option is required.", PrintAddUsage);
         }
 
-        if (!DateTimeOffset.TryParse(
-                dateTimeText,
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.AssumeLocal,
-                out var startsAt))
+        if (!DateTimeParser.TryParse(dateTimeText, out var startsAt))
         {
             return ExitWithUsage(
-                "The event date/time could not be parsed. Use an ISO-like value such as 2026-06-18T14:30.",
+            "The event date/time could not be parsed. Examples: tomorrow 2PM, 2026-06-18T14:30, 9/19/2026, or 9/19/2026:14:30.",
                 PrintAddUsage);
         }
 
@@ -169,7 +168,7 @@ internal static class CalendarConsole
 
         Console.WriteLine($"Added event '{calendarEvent.Name}'.");
         Console.WriteLine($"Id: {calendarEvent.Id}");
-        Console.WriteLine($"When: {FormatDateTime(calendarEvent.StartsAt)}");
+        Console.WriteLine($"When: {DateTimeParser.Format(calendarEvent.StartsAt)}");
 
         if (!string.IsNullOrWhiteSpace(calendarEvent.Location))
         {
@@ -215,7 +214,7 @@ internal static class CalendarConsole
 
         if (!string.IsNullOrWhiteSpace(monthText))
         {
-            if (!DateTime.TryParseExact(monthText, "yyyy-MM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var month))
+            if (!DateTimeParser.TryParseMonth(monthText, out var month))
             {
                 return ExitWithUsage("The --month option must use the format yyyy-MM.", PrintListUsage);
             }
@@ -264,7 +263,7 @@ internal static class CalendarConsole
         {
             Console.WriteLine();
             Console.WriteLine($"[{calendarEvent.Id}] {calendarEvent.Name}");
-            Console.WriteLine($"  When: {FormatDateTime(calendarEvent.StartsAt)}");
+            Console.WriteLine($"  When: {DateTimeParser.Format(calendarEvent.StartsAt)}");
 
             if (!string.IsNullOrWhiteSpace(calendarEvent.Location))
             {
@@ -639,9 +638,6 @@ internal static class CalendarConsole
         }
     }
 
-    private static string FormatDateTime(DateTimeOffset value) =>
-        value.ToLocalTime().ToString("yyyy-MM-dd HH:mm zzz", CultureInfo.InvariantCulture);
-
     private static string? TrimToNull(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
@@ -683,10 +679,20 @@ internal static class CalendarConsole
     private static void PrintAddUsage()
     {
         Console.WriteLine("Usage:");
-        Console.WriteLine("  calendar events add --name <text> --when <date-time> [--description <text>] [--location <text>] [--invitee <email> ...] [--service <name>]");
+        Console.WriteLine("  calendar events add <name> --when <date-time> [--description <text>] [--location <text>] [--invitee <email> ...] [--service <name>]");
+        Console.WriteLine("  calendar events add --name <text> --when <date-time> [options]");
         Console.WriteLine();
-        Console.WriteLine("Example:");
-        Console.WriteLine("  calendar events add --name \"Sprint review\" --description \"Review open work\" --location \"Room 2\" --when \"2026-06-18T14:30\" --invitee alex@example.com --service MyGoogle");
+        Console.WriteLine("Accepted date/time examples:");
+        Console.WriteLine("  2026-06-18T14:30");
+        Console.WriteLine("  9/19/2026");
+        Console.WriteLine("  9/19/2026:2:30 PM");
+        Console.WriteLine("  9/19/2026:14:30");
+        Console.WriteLine("  today");
+        Console.WriteLine("  tomorrow 2PM");
+        Console.WriteLine("  next week");
+        Console.WriteLine();
+        Console.WriteLine("Command example:");
+        Console.WriteLine("  calendar events add \"Sprint review\" --description \"Review open work\" --location \"Room 2\" --when \"2026-06-18T14:30\" --invitee alex@example.com --service MyGoogle");
     }
 
     private static void PrintListUsage()
