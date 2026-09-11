@@ -51,7 +51,7 @@ export function AuthView({ onAuthenticated }: AuthViewProps) {
                         <ArrowLeft aria-hidden="true" /> Back to sign in
                     </button>
                 )}
-                <p className="eyebrow">Common Ground</p>
+                <p className="eyebrow">Calendar Hub</p>
                 <h1>{setupMode ? 'Set up your family calendar' : 'Family calendar'}</h1>
                 <p className="muted">{setupMode ? 'Create the first administrator account on this host.' : 'Sign in with your local family account.'}</p>
                 <form className="auth-form" onSubmit={submit}>

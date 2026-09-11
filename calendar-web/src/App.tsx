@@ -46,7 +46,7 @@ function App() {
       <header className="app-header">
         <button className="brand-button" type="button" onClick={() => setScreen('calendar')} aria-label="Open calendar">
           <span className="brand-mark"><CalendarDays aria-hidden="true" /></span>
-          <span><strong>Common Ground</strong><small>Family calendar</small></span>
+          <span><strong>Calendar Hub</strong><small>Family calendar</small></span>
         </button>
         <nav aria-label="Account navigation">
           <span className="current-user">{user.displayName}</span>
