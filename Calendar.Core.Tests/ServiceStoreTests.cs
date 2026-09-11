@@ -152,6 +152,29 @@ public sealed class ServiceStoreTests : IDisposable
         Assert.Equal("Personal", Assert.Single(reloadedStore.List()).Name);
     }
 
+    [Fact]
+    public void Add_GoogleCalendarId_PersistsTrimmedValue()
+    {
+        var filePath = CreateFilePath();
+        var store = new ServiceStore(filePath);
+        var service = CreateGoogleService("Family", "secrets.json");
+        service.CalendarId = " family@example.com ";
+
+        store.Add(service);
+
+        Assert.Equal("family@example.com", new ServiceStore(filePath).Get("Family")!.CalendarId);
+    }
+
+    [Fact]
+    public void Add_GoogleWithoutCalendarId_PreservesPrimaryDefaultBehavior()
+    {
+        var store = CreateStore();
+
+        var added = store.Add(CreateGoogleService("Family", "secrets.json"));
+
+        Assert.Equal("primary", added.CalendarId);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_directoryPath))

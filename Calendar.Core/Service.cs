@@ -31,4 +31,7 @@ public sealed class Service
 
     /// <summary>Gets or sets the Google OAuth client secrets path.</summary>
     public string? SecretsJsonPath { get; set; }
+
+    /// <summary>Gets or sets the Google calendar identifier.</summary>
+    public string CalendarId { get; set; } = "primary";
 }

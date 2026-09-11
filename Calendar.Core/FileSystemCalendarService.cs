@@ -41,7 +41,7 @@ public sealed class FileSystemCalendarService : ICalendarService
             request.StartsAt,
             request.EndsAt,
             request.IsAllDay,
-            request.Invitees);
+            request.Invitees.ToList());
 
         events.Add(calendarEvent);
         await SaveAllAsync(events, cancellationToken).ConfigureAwait(false);
@@ -156,7 +156,7 @@ public sealed class FileSystemCalendarService : ICalendarService
                 calendarEvent.StartsAt,
                 calendarEvent.EndsAt,
                 calendarEvent.IsAllDay,
-                calendarEvent.Invitees);
+                calendarEvent.Invitees.ToList());
         }
     }
 }

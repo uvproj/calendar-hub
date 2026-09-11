@@ -1,4 +1,5 @@
 using Calendar.Core;
+using System.Globalization;
 using System.Net.Mail;
 using static CalendarCli.CliArguments;
 
@@ -7,6 +8,7 @@ namespace CalendarCli;
 internal static class CalendarConsole
 {
     private static readonly ServiceStore ServiceStore = new();
+    private static readonly CalendarServiceFactory CalendarServiceFactory = new(ServiceStore);
 
     public static async Task<int> RunAsync(string[] args)
     {
@@ -24,38 +26,8 @@ internal static class CalendarConsole
         };
     }
 
-    private static ICalendarService GetCalendarService(string? serviceName)
-    {
-        Service? service = null;
-
-        if (!string.IsNullOrWhiteSpace(serviceName))
-        {
-            service = ServiceStore.Get(serviceName);
-            if (service is null)
-            {
-                throw new CliUsageException($"Service '{serviceName}' was not found.");
-            }
-        }
-        else
-        {
-            service = ServiceStore.List().FirstOrDefault(candidate => candidate.IsDefault);
-            if (service is null)
-            {
-                var fallbackPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "calendar-cli",
-                    "events.json");
-                return new FileSystemCalendarService(fallbackPath);
-            }
-        }
-
-        return service.Type switch
-        {
-            ServiceType.FileSystem => new FileSystemCalendarService(service.FilePath ?? throw new CliUsageException("File path is missing for FileSystem service.")),
-            ServiceType.Google => new GoogleCalendarService(service.SecretsJsonPath ?? throw new CliUsageException("Secrets JSON path is missing for Google service.")),
-            _ => throw new CliUsageException($"Unsupported service type '{service.Type}'.")
-        };
-    }
+    private static ICalendarService GetCalendarService(string? serviceName) =>
+        CalendarServiceFactory.Resolve(serviceName);
 
     private static async Task<int> HandleEventsAsync(string[] args)
     {
@@ -81,7 +53,17 @@ internal static class CalendarConsole
         try
         {
             parsed = CliArguments.Parse(args);
-            parsed.EnsureOnlyKnownOptions("--name", "--when", "--date-time", "--description", "--location", "--invitee", "--service");
+            parsed.EnsureOnlyKnownOptions(
+                "--name",
+                "--when",
+                "--date-time",
+                "--end",
+                "--duration",
+                "--all-day",
+                "--description",
+                "--location",
+                "--invitee",
+                "--service");
         }
         catch (CliUsageException ex)
         {
@@ -137,25 +119,26 @@ internal static class CalendarConsole
             return ExitWithUsage(ex.Message, PrintAddUsage);
         }
 
+        CalendarEventCreateRequest createRequest;
+        try
+        {
+            createRequest = CreateEventRequest(parsed, name, startsAt, invitees);
+        }
+        catch (ArgumentException ex)
+        {
+            return ExitWithUsage(ex.Message, PrintAddUsage);
+        }
+
         var serviceName = parsed.GetSingleValue("--service");
         ICalendarService calendarService;
         try
         {
             calendarService = GetCalendarService(serviceName);
         }
-        catch (CliUsageException ex)
+        catch (CalendarServiceConfigurationException ex)
         {
             return ExitWithUsage(ex.Message, PrintAddUsage);
         }
-
-        var createRequest = new CalendarEventCreateRequest(
-            name.Trim(),
-            TrimToNull(parsed.GetSingleValue("--description")),
-            TrimToNull(parsed.GetSingleValue("--location")),
-            startsAt,
-            startsAt.AddHours(1),
-            false,
-            invitees);
 
         CalendarEvent calendarEvent;
         try
@@ -237,7 +220,7 @@ internal static class CalendarConsole
         {
             calendarService = GetCalendarService(serviceName);
         }
-        catch (CliUsageException ex)
+        catch (CalendarServiceConfigurationException ex)
         {
             return ExitWithUsage(ex.Message, PrintListUsage);
         }
@@ -323,7 +306,7 @@ internal static class CalendarConsole
         {
             calendarService = GetCalendarService(serviceName);
         }
-        catch (CliUsageException ex)
+        catch (CalendarServiceConfigurationException ex)
         {
             return ExitWithUsage(ex.Message, PrintDeleteUsage);
         }
@@ -371,7 +354,7 @@ internal static class CalendarConsole
         try
         {
             parsed = CliArguments.Parse(args);
-            parsed.EnsureOnlyKnownOptions("--name", "--type", "--file-path", "--secrets-path", "--default");
+            parsed.EnsureOnlyKnownOptions("--name", "--type", "--file-path", "--secrets-path", "--calendar-id", "--default");
         }
         catch (CliUsageException ex)
         {
@@ -410,6 +393,7 @@ internal static class CalendarConsole
 
         string? filePath = null;
         string? secretsPath = null;
+        string? calendarId = null;
 
         if (type == ServiceType.FileSystem)
         {
@@ -426,6 +410,13 @@ internal static class CalendarConsole
             {
                 return Task.FromResult(ExitWithUsage("The --secrets-path option is required for Google service type.", PrintServiceAddUsage));
             }
+
+            calendarId = parsed.GetSingleValue("--calendar-id");
+        }
+
+        if (type != ServiceType.Google && parsed.GetSingleValue("--calendar-id") is not null)
+        {
+            return Task.FromResult(ExitWithUsage("The --calendar-id option is only valid for Google service type.", PrintServiceAddUsage));
         }
 
         var makeDefaultValue = parsed.GetSingleValue("--default");
@@ -440,7 +431,8 @@ internal static class CalendarConsole
                 Type = type,
                 IsDefault = makeDefault,
                 FilePath = filePath,
-                SecretsJsonPath = secretsPath
+                SecretsJsonPath = secretsPath,
+                CalendarId = calendarId ?? "primary"
             });
         }
         catch (ArgumentException ex)
@@ -491,7 +483,7 @@ internal static class CalendarConsole
             var configDetails = service.Type switch
             {
                 ServiceType.FileSystem => $"file: {service.FilePath}",
-                ServiceType.Google => $"secrets: {service.SecretsJsonPath}",
+                ServiceType.Google => $"secrets: {service.SecretsJsonPath}, calendar: {service.CalendarId}",
                 _ => string.Empty
             };
             Console.WriteLine($"  - {service.Name}{defaultSuffix} [Type: {service.Type}, {configDetails}]");
@@ -614,6 +606,89 @@ internal static class CalendarConsole
         }
     }
 
+    internal static CalendarEventCreateRequest CreateEventRequest(
+        CliArguments parsed,
+        string name,
+        DateTimeOffset parsedStart,
+        List<string> invitees)
+    {
+        var endText = parsed.GetSingleValue("--end");
+        var durationText = parsed.GetSingleValue("--duration");
+        if (endText is not null && durationText is not null)
+        {
+            throw new ArgumentException("The --end and --duration options are mutually exclusive.");
+        }
+
+        TimeSpan? duration = null;
+        var parsedDuration = default(TimeSpan);
+        if (durationText is not null &&
+            (!TimeSpan.TryParse(durationText, CultureInfo.InvariantCulture, out parsedDuration) || parsedDuration <= TimeSpan.Zero))
+        {
+            throw new ArgumentException("The --duration option must be a positive TimeSpan such as 01:30:00.");
+        }
+        else if (durationText is not null)
+        {
+            duration = parsedDuration;
+        }
+
+        DateTimeOffset? parsedEnd = null;
+        var end = default(DateTimeOffset);
+        if (endText is not null && !DateTimeParser.TryParse(endText, out end))
+        {
+            throw new ArgumentException("The --end option could not be parsed as a date/time.");
+        }
+        else if (endText is not null)
+        {
+            parsedEnd = end;
+        }
+
+        var isAllDay = parsed.GetSingleValue("--all-day") is not null;
+        var startsAt = isAllDay ? AtLocalMidnight(parsedStart) : parsedStart;
+        DateTimeOffset endsAt;
+
+        if (isAllDay)
+        {
+            if (duration is not null && duration.Value.Ticks % TimeSpan.TicksPerDay != 0)
+            {
+                throw new ArgumentException("An all-day event duration must be a whole number of days.");
+            }
+
+            if (parsedEnd is not null && parsedEnd.Value.ToLocalTime().TimeOfDay != TimeSpan.Zero)
+            {
+                throw new ArgumentException("An all-day event end must be an exclusive date at midnight.");
+            }
+
+            endsAt = parsedEnd is not null
+                ? AtLocalMidnight(parsedEnd.Value)
+                : AddLocalDays(startsAt, (int)(duration ?? TimeSpan.FromDays(1)).TotalDays);
+        }
+        else
+        {
+            endsAt = parsedEnd ?? startsAt.Add(duration ?? TimeSpan.FromHours(1));
+        }
+
+        return new CalendarEventCreateRequest(
+            name.Trim(),
+            TrimToNull(parsed.GetSingleValue("--description")),
+            TrimToNull(parsed.GetSingleValue("--location")),
+            startsAt,
+            endsAt,
+            isAllDay,
+            invitees);
+    }
+
+    private static DateTimeOffset AtLocalMidnight(DateTimeOffset value)
+    {
+        var localDate = value.ToLocalTime().Date;
+        return new DateTimeOffset(localDate, TimeZoneInfo.Local.GetUtcOffset(localDate));
+    }
+
+    private static DateTimeOffset AddLocalDays(DateTimeOffset value, int days)
+    {
+        var localDate = value.ToLocalTime().Date.AddDays(days);
+        return new DateTimeOffset(localDate, TimeZoneInfo.Local.GetUtcOffset(localDate));
+    }
+
     private static string? TrimToNull(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
@@ -655,7 +730,7 @@ internal static class CalendarConsole
     private static void PrintAddUsage()
     {
         Console.WriteLine("Usage:");
-        Console.WriteLine("  calendar events add <name> --when <date-time> [--description <text>] [--location <text>] [--invitee <email> ...] [--service <name>]");
+        Console.WriteLine("  calendar events add <name> --when <date-time> [--end <date-time> | --duration <TimeSpan>] [--all-day] [--description <text>] [--location <text>] [--invitee <email> ...] [--service <name>]");
         Console.WriteLine("  calendar events add --name <text> --when <date-time> [options]");
         Console.WriteLine();
         Console.WriteLine("Accepted date/time examples:");
@@ -667,8 +742,13 @@ internal static class CalendarConsole
         Console.WriteLine("  tomorrow 2PM");
         Console.WriteLine("  next week");
         Console.WriteLine();
+        Console.WriteLine("Duration examples:");
+        Console.WriteLine("  00:30:00");
+        Console.WriteLine("  01:30:00");
+        Console.WriteLine("  2.00:00:00");
+        Console.WriteLine();
         Console.WriteLine("Command example:");
-        Console.WriteLine("  calendar events add \"Sprint review\" --description \"Review open work\" --location \"Room 2\" --when \"2026-06-18T14:30\" --invitee alex@example.com --service MyGoogle");
+        Console.WriteLine("  calendar events add \"Sprint review\" --description \"Review open work\" --location \"Room 2\" --when \"2026-06-18T14:30\" --duration 01:30:00 --invitee alex@example.com --service MyGoogle");
     }
 
     private static void PrintListUsage()
@@ -690,7 +770,7 @@ internal static class CalendarConsole
     private static void PrintServicesUsage()
     {
         Console.WriteLine("Usage:");
-        Console.WriteLine("  calendar services add --name <name> --type <FileSystem|Google> [--file-path <path>] [--secrets-path <path>] [--default]");
+        Console.WriteLine("  calendar services add --name <name> --type <FileSystem|Google> [--file-path <path>] [--secrets-path <path>] [--calendar-id <id>] [--default]");
         Console.WriteLine("  calendar services list");
         Console.WriteLine("  calendar services remove --name <name>");
         Console.WriteLine("  calendar services set-default --name <name>");
@@ -699,11 +779,11 @@ internal static class CalendarConsole
     private static void PrintServiceAddUsage()
     {
         Console.WriteLine("Usage:");
-        Console.WriteLine("  calendar services add --name <text> --type <FileSystem|Google> [--file-path <path>] [--secrets-path <path>] [--default]");
+        Console.WriteLine("  calendar services add --name <text> --type <FileSystem|Google> [--file-path <path>] [--secrets-path <path>] [--calendar-id <id>] [--default]");
         Console.WriteLine();
         Console.WriteLine("Examples:");
         Console.WriteLine("  calendar services add --name MyFile --type FileSystem --file-path C:\\Users\\yuvaraj.nagarajan\\mycal.json");
-        Console.WriteLine("  calendar services add --name MyGoogle --type Google --secrets-path C:\\path\\to\\secrets.json --default");
+        Console.WriteLine("  calendar services add --name MyGoogle --type Google --secrets-path C:\\path\\to\\secrets.json --calendar-id family@example.com --default");
     }
 
     private static void PrintServiceListUsage()

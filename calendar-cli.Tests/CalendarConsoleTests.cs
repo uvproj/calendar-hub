@@ -64,6 +64,29 @@ public sealed class CalendarConsoleTests
         Assert.Contains("The event name is required.", error);
     }
 
+    [Fact]
+    public async Task RunAsync_ListWithUnknownOption_ReturnsUsageError()
+    {
+        string[] args = ["events", "list", "--unknown", "value"];
+
+        var (exitCode, error) = await RunAndCaptureErrorAsync(args);
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains("Unknown option(s): --unknown", error);
+    }
+
+    [Fact]
+    public async Task RunAsync_DeleteWithMissingService_ReturnsNotFoundError()
+    {
+        var missingService = $"__missing_{Guid.NewGuid():N}";
+        string[] args = ["events", "delete", "--id", "event-id", "--service", missingService];
+
+        var (exitCode, error) = await RunAndCaptureErrorAsync(args);
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains($"Service '{missingService}' was not found.", error);
+    }
+
     private static async Task<(int ExitCode, string Error)> RunAndCaptureErrorAsync(string[] args)
     {
         var originalError = Console.Error;

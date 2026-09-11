@@ -25,13 +25,18 @@ Adds a new calendar event.
 - **Switches**:
   - `<name>` (Required): Positional text used as the event title. Multi-word names may be quoted (`"Sprint Planning"`) or supplied as separate positional words (`Sprint Planning`). The existing `--name <text>` form is also supported, but it cannot be combined with a positional name.
   - `--when <date-time>` or `--date-time <date-time>` (Required): The start date and time of the event. Accepted formats include ISO-like date/time (`2026-06-18T14:30`), date only (`9/19/2026`), 12-hour time (`9/19/2026:2:30 PM`), 24-hour time (`9/19/2026:14:30`), and relative expressions (`today`, `tomorrow`, `tomorrow 2PM`, `next week`). Date-only and relative expressions without a time use local midnight; `next week` means seven days from today. Quote values that contain spaces.
+  - `--end <date-time>` (Optional): The exclusive event end. It accepts the same date/time formats as `--when` and cannot be combined with `--duration`.
+  - `--duration <TimeSpan>` (Optional): A positive .NET `TimeSpan`, such as `00:30:00`, `01:30:00`, or `2.00:00:00`. It cannot be combined with `--end`. Timed events default to one hour when neither option is supplied.
+  - `--all-day` (Optional, Flag): Creates an all-day event. The start is normalized to local midnight. The end is exclusive and defaults to the following local midnight. With `--end`, specify a date or midnight; with `--duration`, specify a whole number of days such as `1.00:00:00`.
   - `--description <text>` (Optional): A description of the event.
   - `--location <text>` (Optional): The physical or virtual location of the event.
   - `--invitee <email>` (Optional, Multiple Allowed): An invitee's email address. Can be supplied multiple times for multiple invitees.
   - `--service <name>` (Optional): Specifies the target service to create the event in. If not provided, the default service will be used. If no services are registered, it falls back to the local filesystem calendar.
 - **Example**:
   ```bash
-  calendar events add "Sprint Planning" --when "2026-06-18T10:00" --description "Plan tasks for Sprint 5" --location "Meeting Room 4" --invitee alex@example.com --service MyGoogle
+  calendar events add "Sprint Planning" --when "2026-06-18T10:00" --duration 01:30:00 --description "Plan tasks for Sprint 5" --location "Meeting Room 4" --invitee alex@example.com --service MyGoogle
+  calendar events add "Company holiday" --when 2026-06-19 --all-day --service MyGoogle
+  calendar events add "Conference" --when 2026-06-19 --end 2026-06-22 --all-day --service MyGoogle
   ```
 
 #### `calendar events list`
@@ -67,11 +72,12 @@ Registers a new service provider.
   - `--type <FileSystem|Google>` (Required): The type of the service.
   - `--file-path <path>` (Required for `FileSystem` type): The file path where the calendar events JSON file will be stored.
   - `--secrets-path <path>` (Required for `Google` type): The path to the Google Client ID secrets JSON file.
+  - `--calendar-id <id>` (Optional for `Google` type): The Google calendar identifier. It defaults to `primary`, preserving existing configurations.
   - `--default` (Optional, Flag): Sets this service as the default calendar service. If it is the first service added, it is automatically set as the default service.
 - **Examples**:
   ```bash
   calendar services add --name MyFile --type FileSystem --file-path C:\Users\yuvaraj\mycal.json
-  calendar services add --name MyGoogle --type Google --secrets-path C:\path\to\secrets.json --default
+  calendar services add --name MyGoogle --type Google --secrets-path C:\path\to\secrets.json --calendar-id family@example.com --default
   ```
 
 #### `calendar services list`
@@ -85,7 +91,7 @@ Lists all registered service providers, showing their names, types, configuratio
   ```
   Registered services:
     - MyFile [Type: FileSystem, file: C:\Users\yuvaraj\mycal.json]
-    - MyGoogle (default) [Type: Google, secrets: C:\path\to\secrets.json]
+    - MyGoogle (default) [Type: Google, secrets: C:\path\to\secrets.json, calendar: family@example.com]
   ```
 
 #### `calendar services remove`
@@ -112,4 +118,4 @@ Sets a registered service provider as the default service. Only one service can 
 
 - **Events Data (Default FileSystem Fallback)**: Stored in a JSON file at `%localappdata%\calendar-cli\events.json`.
 - **Services Data**: Stored in a JSON file at `%localappdata%\calendar-cli\services.json`.
-- **Google OAuth Tokens**: Cached at `%localappdata%\calendar-cli\google-tokens\`.
+- **Google OAuth Tokens**: Cached separately for each configured service under `%localappdata%\calendar-cli\google-tokens\<service-identity-hash>`. Existing tokens are not migrated automatically.

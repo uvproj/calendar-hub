@@ -2,6 +2,12 @@ namespace CalendarCli;
 
 internal sealed class CliArguments
 {
+    private static readonly HashSet<string> BooleanFlags = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "--all-day",
+        "--default"
+    };
+
     private readonly Dictionary<string, List<string>> _options = new(StringComparer.OrdinalIgnoreCase);
 
     public IReadOnlyList<string> Positionals { get; }
@@ -38,7 +44,7 @@ internal sealed class CliArguments
 
             if (index + 1 >= args.Count || args[index + 1].StartsWith("--", StringComparison.Ordinal))
             {
-                if (current.Equals("--default", StringComparison.OrdinalIgnoreCase))
+                if (BooleanFlags.Contains(current))
                 {
                     parsed.AddOption(current, "true");
                     continue;

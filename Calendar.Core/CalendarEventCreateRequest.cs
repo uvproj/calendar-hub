@@ -36,7 +36,7 @@ public sealed record CalendarEventCreateRequest
         StartsAt = startsAt;
         EndsAt = endsAt;
         IsAllDay = isAllDay;
-        Invitees = invitees;
+        Invitees = invitees.ToList().AsReadOnly();
     }
 
     /// <summary>Gets the event name.</summary>
@@ -58,5 +58,5 @@ public sealed record CalendarEventCreateRequest
     public bool IsAllDay { get; }
 
     /// <summary>Gets the invited email addresses.</summary>
-    public List<string> Invitees { get; }
+    public IReadOnlyList<string> Invitees { get; }
 }

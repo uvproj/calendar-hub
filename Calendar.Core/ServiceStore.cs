@@ -216,6 +216,7 @@ public sealed class ServiceStore
         normalizedService.Name = service.Name.Trim();
         normalizedService.FilePath = TrimToNull(service.FilePath);
         normalizedService.SecretsJsonPath = TrimToNull(service.SecretsJsonPath);
+        normalizedService.CalendarId = TrimToNull(service.CalendarId) ?? "primary";
 
         switch (normalizedService.Type)
         {
@@ -239,7 +240,8 @@ public sealed class ServiceStore
             Type = service.Type,
             IsDefault = service.IsDefault,
             FilePath = service.FilePath,
-            SecretsJsonPath = service.SecretsJsonPath
+            SecretsJsonPath = service.SecretsJsonPath,
+            CalendarId = TrimToNull(service.CalendarId) ?? "primary"
         };
     }
 

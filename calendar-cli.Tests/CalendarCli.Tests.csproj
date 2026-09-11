@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\calendar-cli\calendar-cli.csproj" />
+    <ProjectReference Include="..\Calendar.Core\Calendar.Core.csproj" />
   </ItemGroup>
 
 </Project>

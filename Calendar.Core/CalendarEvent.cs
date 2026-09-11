@@ -40,7 +40,7 @@ public sealed record CalendarEvent
         StartsAt = startsAt;
         EndsAt = endsAt;
         IsAllDay = isAllDay;
-        Invitees = invitees;
+        Invitees = invitees.ToList().AsReadOnly();
     }
 
     /// <summary>Gets the provider event identifier.</summary>
@@ -65,5 +65,5 @@ public sealed record CalendarEvent
     public bool IsAllDay { get; }
 
     /// <summary>Gets the invited email addresses.</summary>
-    public List<string> Invitees { get; }
+    public IReadOnlyList<string> Invitees { get; }
 }
