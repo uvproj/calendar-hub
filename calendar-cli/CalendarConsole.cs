@@ -1,3 +1,4 @@
+using Calendar.Core;
 using System.Net.Mail;
 using static CalendarCli.CliArguments;
 
@@ -23,7 +24,7 @@ internal static class CalendarConsole
         };
     }
 
-    private static async Task<ICalendarService> GetCalendarServiceAsync(string? serviceName)
+    private static ICalendarService GetCalendarService(string? serviceName)
     {
         var services = ServiceStore.LoadAll();
         Service? service = null;
@@ -141,24 +142,26 @@ internal static class CalendarConsole
         ICalendarService calendarService;
         try
         {
-            calendarService = await GetCalendarServiceAsync(serviceName);
+            calendarService = GetCalendarService(serviceName);
         }
         catch (CliUsageException ex)
         {
             return ExitWithUsage(ex.Message, PrintAddUsage);
         }
 
-        var calendarEvent = new CalendarEvent(
-            string.Empty,
+        var createRequest = new CalendarEventCreateRequest(
             name.Trim(),
             TrimToNull(parsed.GetSingleValue("--description")),
             TrimToNull(parsed.GetSingleValue("--location")),
             startsAt,
+            startsAt.AddHours(1),
+            false,
             invitees);
 
+        CalendarEvent calendarEvent;
         try
         {
-            await calendarService.AddAsync(calendarEvent);
+            calendarEvent = await calendarService.AddAsync(createRequest);
         }
         catch (Exception ex)
         {
@@ -233,7 +236,7 @@ internal static class CalendarConsole
         ICalendarService calendarService;
         try
         {
-            calendarService = await GetCalendarServiceAsync(serviceName);
+            calendarService = GetCalendarService(serviceName);
         }
         catch (CliUsageException ex)
         {
@@ -319,7 +322,7 @@ internal static class CalendarConsole
         ICalendarService calendarService;
         try
         {
-            calendarService = await GetCalendarServiceAsync(serviceName);
+            calendarService = GetCalendarService(serviceName);
         }
         catch (CliUsageException ex)
         {

@@ -14,7 +14,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Google.Apis.Calendar.v3" Version="1.74.0.4154" />
+    <ProjectReference Include="..\Calendar.Core\Calendar.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
