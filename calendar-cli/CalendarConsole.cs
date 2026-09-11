@@ -26,12 +26,11 @@ internal static class CalendarConsole
 
     private static ICalendarService GetCalendarService(string? serviceName)
     {
-        var services = ServiceStore.LoadAll();
         Service? service = null;
 
         if (!string.IsNullOrWhiteSpace(serviceName))
         {
-            service = services.FirstOrDefault(s => s.Name.Equals(serviceName.Trim(), StringComparison.OrdinalIgnoreCase));
+            service = ServiceStore.Get(serviceName);
             if (service is null)
             {
                 throw new CliUsageException($"Service '{serviceName}' was not found.");
@@ -39,7 +38,7 @@ internal static class CalendarConsole
         }
         else
         {
-            service = services.FirstOrDefault(s => s.IsDefault);
+            service = ServiceStore.List().FirstOrDefault(candidate => candidate.IsDefault);
             if (service is null)
             {
                 var fallbackPath = Path.Combine(
@@ -432,39 +431,25 @@ internal static class CalendarConsole
         var makeDefaultValue = parsed.GetSingleValue("--default");
         bool makeDefault = makeDefaultValue != null && makeDefaultValue.Equals("true", StringComparison.OrdinalIgnoreCase);
 
-        var services = ServiceStore.LoadAll();
-        if (services.Any(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+        Service addedService;
+        try
         {
-            Console.Error.WriteLine($"Service '{name}' already exists.");
+            addedService = ServiceStore.Add(new Service
+            {
+                Name = name,
+                Type = type,
+                IsDefault = makeDefault,
+                FilePath = filePath,
+                SecretsJsonPath = secretsPath
+            });
+        }
+        catch (ArgumentException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
             return Task.FromResult(1);
         }
 
-        if (services.Count == 0)
-        {
-            makeDefault = true;
-        }
-
-        if (makeDefault)
-        {
-            foreach (var s in services)
-            {
-                s.IsDefault = false;
-            }
-        }
-
-        var newService = new Service
-        {
-            Name = name,
-            Type = type,
-            IsDefault = makeDefault,
-            FilePath = filePath,
-            SecretsJsonPath = secretsPath
-        };
-
-        services.Add(newService);
-        ServiceStore.SaveAll(services);
-
-        Console.WriteLine($"Added service '{name}' ({type})" + (makeDefault ? " as default." : "."));
+        Console.WriteLine($"Added service '{addedService.Name}' ({addedService.Type})" + (addedService.IsDefault ? " as default." : "."));
         return Task.FromResult(0);
     }
 
@@ -492,7 +477,7 @@ internal static class CalendarConsole
             return Task.FromResult(ExitWithUsage("Unexpected positional arguments were supplied.", PrintServiceListUsage));
         }
 
-        var services = ServiceStore.LoadAll();
+        var services = ServiceStore.List();
         if (services.Count == 0)
         {
             Console.WriteLine("No services registered.");
@@ -547,28 +532,25 @@ internal static class CalendarConsole
 
         name = name.Trim();
 
-        var services = ServiceStore.LoadAll();
-        var existing = services.FirstOrDefault(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-        if (existing is null)
+        var deleted = ServiceStore.Delete(name);
+        if (deleted is null)
         {
             Console.Error.WriteLine($"Service '{name}' not found.");
             return Task.FromResult(1);
         }
 
-        bool removedWasDefault = existing.IsDefault;
-        services.Remove(existing);
-
-        if (removedWasDefault && services.Count > 0)
+        var replacementDefault = deleted.IsDefault
+            ? ServiceStore.List().FirstOrDefault(service => service.IsDefault)
+            : null;
+        if (replacementDefault is not null)
         {
-            services[0].IsDefault = true;
-            Console.WriteLine($"Removed default service '{existing.Name}'. '{services[0].Name}' is now the default service.");
+            Console.WriteLine($"Removed default service '{deleted.Name}'. '{replacementDefault.Name}' is now the default service.");
         }
         else
         {
-            Console.WriteLine($"Removed service '{existing.Name}'.");
+            Console.WriteLine($"Removed service '{deleted.Name}'.");
         }
 
-        ServiceStore.SaveAll(services);
         return Task.FromResult(0);
     }
 
@@ -604,21 +586,12 @@ internal static class CalendarConsole
 
         name = name.Trim();
 
-        var services = ServiceStore.LoadAll();
-        var target = services.FirstOrDefault(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        var target = ServiceStore.SetDefault(name);
         if (target is null)
         {
             Console.Error.WriteLine($"Service '{name}' not found.");
             return Task.FromResult(1);
         }
-
-        foreach (var s in services)
-        {
-            s.IsDefault = false;
-        }
-
-        target.IsDefault = true;
-        ServiceStore.SaveAll(services);
 
         Console.WriteLine($"Set service '{target.Name}' as the default service.");
         return Task.FromResult(0);
